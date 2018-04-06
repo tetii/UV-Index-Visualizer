@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Visualize UV indices of vertex/edge/face/loop in UV/Image View.",
     "author": "Tetii",
-    "version": (1, 0),
+    "version": (1, 1),
     "blender": (2, 79, 0),
     "location": "Image Editor > Property Shelf > Visible UV Indecies",
     "description": "Drawing indecies at Image View",
@@ -13,7 +13,8 @@ bl_info = {
 }
 
 
-import bpy, bmesh
+import bpy
+import bmesh
 from bpy.props import BoolProperty, IntProperty, PointerProperty
 from mathutils import Vector, Matrix
 from math import pi
@@ -55,7 +56,7 @@ class RenderUVIndex(bpy.types.Operator):
 
 
     @classmethod
-    def abort_handle(cls):
+    def release_handle(cls):
         cls.__handle_remove()
 
 
@@ -111,7 +112,8 @@ class RenderUVIndex(bpy.types.Operator):
         scene = context.scene
         ruvi_props = scene.ruvi_properties
         uv_select_sync = scene.tool_settings.use_uv_select_sync
-        bg_color = (0.0, 0.0, 0.0, 0.3)
+        black = (0.0, 0.0, 0.0, 1.0)
+        quasi_black = (0.0, 0.0, 0.0, 0.3)
         blf.shadow(0, 3, 1.0, 0.0, 0.0, 1.0)
         blf.shadow_offset(0, 2, -2)
 
@@ -137,13 +139,12 @@ class RenderUVIndex(bpy.types.Operator):
                     if uv_select_sync and not loop1.vert.select:
                         continue
                     
-                    #cls.__draw_vert_index(
                     cls.__render_text_index(
                                     context, 
                                     region, 
                                     loop1.vert.index, 
                                     uv1, 
-                                    bg_color=bg_color, 
+                                    bg_color=quasi_black, 
                                     )
 
                 # Get next loop parameter
@@ -167,7 +168,7 @@ class RenderUVIndex(bpy.types.Operator):
                                         uvm, 
                                         uvt=uvt, 
                                         uvn=uvn,
-                                        bg_color=bg_color, 
+                                        bg_color=quasi_black, 
                                         )
 
                 blf.enable(0, blf.SHADOW)
@@ -182,7 +183,7 @@ class RenderUVIndex(bpy.types.Operator):
                                     uvm, 
                                     uvt=uvt, 
                                     uvn=uvn, 
-                                    loop_offset=(1.0, 1.5)
+                                    loop_offset=(1.0, 1.5),
                                     )
 
                 blf.disable(0, blf.ROTATION)
@@ -215,7 +216,7 @@ class RenderUVIndex(bpy.types.Operator):
 
             # Redraw all UV/Image Editor Views
             for a in context.screen.areas:
-                if a.type == context.area.type: # necessary filtering
+                if a.type == context.area.type: # the filtering is necessary
                     a.tag_redraw()
 
             return {'FINISHED'}
@@ -273,19 +274,15 @@ class RenderUVIndex(bpy.types.Operator):
         offset = (text_w * uvt + text_h * uvn) / 2
         sub_offset = additional_offset * text_h * uvn
 
-        vo = Vector([1,0])
-        
-        if uvt.y >= 0:
-            angle =  uvt.angle(vo)
-        else:
-            angle = -uvt.angle(vo)
-
-        if uvt.x + uvt.y >= 0:
+        vxo = Vector([1, 0])
+        vxy = Vector([1,-1])
+        angle = uvt.angle_signed(vxo)
+        if uvt.angle_signed(vxy) > 0:
             v = v - offset + sub_offset
         else:
             v = v + offset + sub_offset
             angle -= pi
-            
+
         blf.rotation(0, angle)
 
         # Render index
@@ -465,7 +462,7 @@ def register():
 def unregister():
 
     # Remove handle before unregisting classes
-    bpy.types.UV_OT_render_uv_index.abort_handle()
+    bpy.types.UV_OT_render_uv_index.release_handle()
     
     bpy.utils.unregister_module(__name__)
     clear_props()
